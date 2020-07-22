@@ -25,5 +25,8 @@
   "bugs": {
     "url": "https://github.com/steveify1/node-gourl/issues"
   },
-  "homepage": "https://github.com/steveify1/node-gourl#readme"
+  "homepage": "https://github.com/steveify1/node-gourl#readme",
+  "dependencies": {
+    "crc-32": "^1.2.0"
+  }
 }
