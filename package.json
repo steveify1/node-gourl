@@ -1,0 +1,29 @@
+{
+  "name": "gourl",
+  "version": "1.0.0",
+  "description": "the node.js implementation of the gourl.io cryptobox",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/steveify1/node-gourl.git"
+  },
+  "keywords": [
+    "gourl",
+    "cryptobox",
+    "nodejs",
+    "cryptocurrency",
+    "payment"
+  ],
+  "author": "Nwakasi Stephen Ifeanyi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/steveify1/node-gourl/issues"
+  },
+  "homepage": "https://github.com/steveify1/node-gourl#readme"
+}
