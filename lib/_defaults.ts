@@ -1,4 +1,6 @@
-module.exports = {
+import CryptoboxOptions from './interfaces/CryptoboxOptions';
+
+const defaults: CryptoboxOptions = {
   // Custom Variables
 
   publicKey: '', // value from your gourl.io member page - https://gourl.io/info/memberarea
@@ -45,3 +47,5 @@ module.exports = {
   localisation: '', // localisation; en - English, es - Spanish, fr - French, de - German, nl - Dutch, it - Italian, ru - Russian, pl - Polish, pt - Portuguese, fa - Persian, ko - Korean, ja - Japanese, id - Indonesian, tr - Turkish, ar - Arabic, cn - Simplified Chinese, zh - Traditional Chinese, hi - Hindi
   ver: '', // version
 };
+
+export default defaults;

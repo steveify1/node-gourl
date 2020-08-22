@@ -73,7 +73,11 @@
  *        Read more - https://gourl.io/api-php.html#ipn
  */
 
-module.exports = (paymentID = 0, paymentDetails = {}, boxStatus = '') => {
+module.exports = (
+  paymentID: number = 0,
+  paymentDetails: any = {},
+  boxStatus: string = ''
+): boolean => {
   // Place Your Code Here
   return true;
 };

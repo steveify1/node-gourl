@@ -1,7 +1,7 @@
 /**
  * Allowed Languages at the `gourl.io` API
  */
-exports.ALLOWED_LANGUAGES = [
+export const ALLOWED_LANGUAGES = [
   'en',
   'es',
   'fr',
@@ -26,7 +26,7 @@ exports.ALLOWED_LANGUAGES = [
  * Minimum required properties for the creation of a valid
  * `Cryptobox` instance.
  */
-exports.MINIMUM_REQUIRED_PROPERTIES = [
+export const MINIMUM_REQUIRED_PROPERTIES = [
   'publicKey',
   'privateKey',
   'webdevKey',
@@ -43,4 +43,4 @@ exports.MINIMUM_REQUIRED_PROPERTIES = [
 /**
  * The cryptobox version
  */
-exports.CRYPTOBOX_VERSION = '2.2.1';
+export const CRYPTOBOX_VERSION = '2.2.1';
