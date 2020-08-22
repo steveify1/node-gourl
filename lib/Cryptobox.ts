@@ -70,72 +70,78 @@
  *
  */
 
-const crypto = require('crypto');
-const https = require('https');
-const { Buffer } = require('buffer');
-const crc32 = require('crc-32');
+// import crypto  from 'crypto';
+// import https  from 'https';
+import { Buffer } from 'buffer';
+import crc32 from 'crc-32';
+import md5 from 'md5';
+import axios, { AxiosResponse } from 'axios';
+
+import CryptoboxOptions from './interfaces/CryptoboxOptions';
+import RequestURLKeys from './interfaces/RequestURLKeys';
 
 // IMPORT SOME DEFAULT OPTIONS
-const defaults = require('./_defaults');
+import defaults from './_defaults';
 
 // IMPORT CONSTANTS
-const {
+import {
   ALLOWED_LANGUAGES,
   MINIMUM_REQUIRED_PROPERTIES,
   CRYPTOBOX_VERSION,
-} = require('./constants');
+} from './constants';
 
 class Cryptobox {
+  public baseURL: string = 'https://coins.gourl.io';
+  public publicKey = ''; // value from your gourl.io member page - https://gourl.io/info/memberarea
+  public privateKey = ''; // value from your gourl.io member page.  Also you setup cryptocoin name on gourl.io member page
+  public webdevKey = ''; // optional, web developer affiliate key
+  public ipAddress: string = ''; // The IP address of the current user or the server
+  public amount = 0; // amount of cryptocoins which will be used in the payment box/captcha, precision is 4 (number of digits after the decimal), example: 0.0001, 2.444, 100, 2455, etc.
+  /* we will use this $amount value of cryptocoins in the payment box with a small fraction after the decimal point to uniquely identify each of your users individually
+   * (for example, if you enter 0.5 BTC, one of your user will see 0.500011 BTC, and another will see  0.500046 BTC, etc) */
+  public amountUSD = 0;
+  /* you can specify your price in USD and cryptobox will automatically convert that USD amount to cryptocoin amount using today live cryptocurrency exchange rates.
+   * Using that functionality (price in USD), you don't need to worry if cryptocurrency prices go down or up.
+   * User will pay you all times the actual price which is linked on current exchange price in USD on the datetime of purchase.
+   * You can use in cryptobox options one variable only: amount or amountUSD. You cannot place values of those two variables together. */
+  public period = ''; // period after which the payment becomes obsolete and new cryptobox will be shown; allow values: NOEXPIRY, 1 MINUTE..90 MINUTE, 1 HOUR..90 HOURS, 1 DAY..90 DAYS, 1 WEEK..90 WEEKS, 1 MONTH..90 MONTHS
+  public language = 'en'; // cryptobox localisation; en - English, es - Spanish, fr - French, de - German, nl - Dutch, it - Italian, ru - Russian, pl - Polish, pt - Portuguese, fa - Persian, ko - Korean, ja - Japanese, id - Indonesian, tr - Turkish, ar - Arabic, cn - Simplified Chinese, zh - Traditional Chinese, hi - Hindi
+  public iframeID = ''; // optional, html iframe element id; allow symbols: a..Z0..9_-
+  public orderID = ''; // your page name / product name or order name (not unique); allow symbols: a..Z0..9_-@.; max size: 50 symbols
+  public userID = ''; // optional, manual setup unique identifier for each of your users; allow symbols: a..Z0..9_-@.; max size: 50 symbols
+  /* IMPORTANT - If you use Payment Box/Captcha for registered users on your website, you need to set userID manually with
+   * an unique value for each of your registered user. It is better than to use cookies by default. Examples: 'user1', 'user2', '3vIh9MjEis' */
+  public userFormat = 'MANUAL'; // this variable use only if $userID above is empty - it will save random userID in cookies, sessions or use user IP address as userID. Available values: COOKIE, SESSION, IPADDRESS
+
+  /* PLEASE NOTE -
+   * If you use multiple stores/sites online, please create separate GoUrl Payment Box (with unique payment box public/private keys) for each of your stores/websites.
+   * Do not use the same GoUrl Payment Box with the same public/private keys on your different websites/stores.
+   * if you use the same $public_key, $orderID and $userID in your multiple cryptocoin payment boxes on different website pages and a user has made payment; a successful result for that user will be returned on all those pages (if $period time valid).
+   * if you change - $public_key or $orderID or $userID - new cryptocoin payment box will be shown for exisiting paid user. (function $this->is_paid() starts to return 'false').
+   * */
+
+  // Internal Variables
+  private boxID = 0; // cryptobox id, the same as on gourl.io member page. For each your cryptocoin payment boxes you will have unique public / private keys
+  private coinLabel = ''; // current cryptocoin label (BTC, DOGE, etc.)
+  private coinName = ''; // current cryptocoin name (Bitcoin, Dogecoin, etc.)
+  private paid = false; // paid or not
+  private confirmed = false; // transaction/payment have 6+ confirmations or not
+  private paymentID = false; // current record id in the table crypto_payments (table stores all payments from your users)
+  private paymentDate = ''; // transaction/payment datetime in GMT format
+  private amountPaid = 0; // exact paid amount; for example, $amount = 0.5 BTC and user paid - $amountPaid = 0.50002 BTC
+  private amountPaidUSD = 0; // approximate paid amount in USD; using cryptocurrency exchange rate on datetime of payment
+  private boxType = ''; // cryptobox type - 'paymentbox' or 'captchabox'
+  private processed = false; // optional - set flag to paid & processed
+  private cookieName = ''; // user cookie/session name (if cookies/sessions use)
+  private localisation = ''; // localisation; en - English, es - Spanish, fr - French, de - German, nl - Dutch, it - Italian, ru - Russian, pl - Polish, pt - Portuguese, fa - Persian, ko - Korean, ja - Japanese, id - Indonesian, tr - Turkish, ar - Arabic, cn - Simplified Chinese, zh - Traditional Chinese, hi - Hindi
+  private version = `version | gourlphp ${CRYPTOBOX_VERSION}`;
+  public userAgent: string = '';
+
   /**
    * Creates an new Cryptobox object for interfacing with a `gourl` cryptobox
    * (payment box or capcha box)
    */
-  constructor(options = defaults) {
-    this.baseURL = 'https://coins.gourl.io';
-    this.version = `version | gourlphp ${CRYPTOBOX_VERSION}`;
-
-    this.publicKey = ''; // value from your gourl.io member page - https://gourl.io/info/memberarea
-    this.privateKey = ''; // value from your gourl.io member page.  Also you setup cryptocoin name on gourl.io member page
-    this.webdevKey = ''; // optional, web developer affiliate key
-    this.amount = 0; // amount of cryptocoins which will be used in the payment box/captcha, precision is 4 (number of digits after the decimal), example: 0.0001, 2.444, 100, 2455, etc.
-    /* we will use this $amount value of cryptocoins in the payment box with a small fraction after the decimal point to uniquely identify each of your users individually
-     * (for example, if you enter 0.5 BTC, one of your user will see 0.500011 BTC, and another will see  0.500046 BTC, etc) */
-    this.amountUSD = 0;
-    /* you can specify your price in USD and cryptobox will automatically convert that USD amount to cryptocoin amount using today live cryptocurrency exchange rates.
-     * Using that functionality (price in USD), you don't need to worry if cryptocurrency prices go down or up.
-     * User will pay you all times the actual price which is linked on current exchange price in USD on the datetime of purchase.
-     * You can use in cryptobox options one variable only: amount or amountUSD. You cannot place values of those two variables together. */
-    this.period = ''; // period after which the payment becomes obsolete and new cryptobox will be shown; allow values: NOEXPIRY, 1 MINUTE..90 MINUTE, 1 HOUR..90 HOURS, 1 DAY..90 DAYS, 1 WEEK..90 WEEKS, 1 MONTH..90 MONTHS
-    this.language = 'en'; // cryptobox localisation; en - English, es - Spanish, fr - French, de - German, nl - Dutch, it - Italian, ru - Russian, pl - Polish, pt - Portuguese, fa - Persian, ko - Korean, ja - Japanese, id - Indonesian, tr - Turkish, ar - Arabic, cn - Simplified Chinese, zh - Traditional Chinese, hi - Hindi
-    this.iframeID = ''; // optional, html iframe element id; allow symbols: a..Z0..9_-
-    this.orderID = ''; // your page name / product name or order name (not unique); allow symbols: a..Z0..9_-@.; max size: 50 symbols
-    this.userID = ''; // optional, manual setup unique identifier for each of your users; allow symbols: a..Z0..9_-@.; max size: 50 symbols
-    /* IMPORTANT - If you use Payment Box/Captcha for registered users on your website, you need to set userID manually with
-     * an unique value for each of your registered user. It is better than to use cookies by default. Examples: 'user1', 'user2', '3vIh9MjEis' */
-    this.userFormat = 'MANUAL'; // this variable use only if $userID above is empty - it will save random userID in cookies, sessions or use user IP address as userID. Available values: COOKIE, SESSION, IPADDRESS
-
-    /* PLEASE NOTE -
-     * If you use multiple stores/sites online, please create separate GoUrl Payment Box (with unique payment box public/private keys) for each of your stores/websites.
-     * Do not use the same GoUrl Payment Box with the same public/private keys on your different websites/stores.
-     * if you use the same $public_key, $orderID and $userID in your multiple cryptocoin payment boxes on different website pages and a user has made payment; a successful result for that user will be returned on all those pages (if $period time valid).
-     * if you change - $public_key or $orderID or $userID - new cryptocoin payment box will be shown for exisiting paid user. (function $this->is_paid() starts to return 'false').
-     * */
-
-    // Internal Variables
-    this.boxID = 0; // cryptobox id, the same as on gourl.io member page. For each your cryptocoin payment boxes you will have unique public / private keys
-    this.coinLabel = ''; // current cryptocoin label (BTC, DOGE, etc.)
-    this.coinName = ''; // current cryptocoin name (Bitcoin, Dogecoin, etc.)
-    this.paid = false; // paid or not
-    this.confirmed = false; // transaction/payment have 6+ confirmations or not
-    this.paymentID = false; // current record id in the table crypto_payments (table stores all payments from your users)
-    this.paymentDate = ''; // transaction/payment datetime in GMT format
-    this.amountPaid = 0; // exact paid amount; for example, $amount = 0.5 BTC and user paid - $amountPaid = 0.50002 BTC
-    this.amountPaidUSD = 0; // approximate paid amount in USD; using cryptocurrency exchange rate on datetime of payment
-    this.boxType = ''; // cryptobox type - 'paymentbox' or 'captchabox'
-    this.processed = false; // optional - set flag to paid & processed
-    this.cookieName = ''; // user cookie/session name (if cookies/sessions use)
-    this.localisation = ''; // localisation; en - English, es - Spanish, fr - French, de - German, nl - Dutch, it - Italian, ru - Russian, pl - Polish, pt - Portuguese, fa - Persian, ko - Korean, ja - Japanese, id - Indonesian, tr - Turkish, ar - Arabic, cn - Simplified Chinese, zh - Traditional Chinese, hi - Hindi
-
+  constructor(options: CryptoboxOptions = defaults) {
     this.checkAndInitMinRequirements(options);
     this.setBoxID();
     this.validatePublicKey();
@@ -155,13 +161,12 @@ class Cryptobox {
    *
    * @returns { void } void
    */
-  checkAndInitMinRequirements(options) {
-    let value = '';
-    for (let key in options) {
-      value = options[key];
-      if (!MINIMUM_REQUIRED_PROPERTIES.includes(key)) continue;
-      this[key] = typeof value === 'string' ? value.trim() : value;
-    }
+  checkAndInitMinRequirements(options: CryptoboxOptions): void {
+    Object.keys(options).forEach((option: string, index: number) => {
+      if (!MINIMUM_REQUIRED_PROPERTIES.includes(option)) return;
+      const { value } = Object.getOwnPropertyDescriptor(options, option)!;
+      Object.defineProperty(this, option, { value });
+    });
   }
 
   /**
@@ -169,7 +174,7 @@ class Cryptobox {
    * @param { string } key - A string to be tested for a match
    * @returns { Boolean } true if a match is found. Otherwise, false
    */
-  checkKeyPattern(key) {
+  checkKeyPattern(key: string): boolean {
     const patternMatch = key.replace(/[^A-Za-z0-9]/, '');
     return patternMatch === key;
   }
@@ -185,8 +190,11 @@ class Cryptobox {
    * Sets the coin label and coin name
    * @return { void } void
    */
-  setCoinInfo() {
-    const c = this.right(this.left(this.publicKey, 'PUB'), 'AA').substring(5);
+  setCoinInfo(): void {
+    const c: string = this.right(
+      this.left(this.publicKey, 'PUB'),
+      'AA'
+    ).substring(5);
     this.coinLabel = this.right(c, '77');
     this.coinName = this.left(c, '77');
   }
@@ -194,15 +202,15 @@ class Cryptobox {
   /**
    * Sets the `amount` and `amountUSD` properties of the class
    */
-  setAmount() {
-    this.amount = this.amount.toString();
-    this.amountUSD = this.amountUSD.toString();
-    if (this.amount && this.amount.indexOf('.')) {
-      this.amount = Number(this.amount.trim());
+  setAmount(): void {
+    const amount: string = this.amount.toString();
+    const amountUSD: string = this.amountUSD.toString();
+    if (amount && amount.indexOf('.')) {
+      this.amount = Number(amount.trim());
     }
 
-    if (this.amountUSD && this.amountUSD.indexOf('.')) {
-      this.amountUSD = Number(this.amountUSD.trim());
+    if (amountUSD && amountUSD.indexOf('.')) {
+      this.amountUSD = Number(amountUSD.trim());
     }
 
     if (!this.amount || this.amount <= 0) this.amount = 0;
@@ -213,13 +221,13 @@ class Cryptobox {
    * Set cryptobox expiry period. This sets the value of the `period` property
    * which determines the period after which the cryptobox will be obselete and a new cryptobox must then be created.
    */
-  setExpiry() {
+  setExpiry(): void {
     this.period = this.period.replace(' ', '').toUpperCase().trim();
     if (this.period.substring(-1) === 'S') {
       this.period = this.period.substring(0, -1);
     }
 
-    const arr = [];
+    const arr: string[] = [];
     for (let i = 1; i <= 90; i++) {
       arr.push(`${i}MINUTE`);
       arr.push(`${i}HOUR`);
@@ -262,9 +270,9 @@ class Cryptobox {
    * - 'hi',
    *
    */
-  setLanguage(lang = 'en') {
+  setLanguage(lang: string = 'en'): void {
     if (!ALLOWED_LANGUAGES.includes(lang)) {
-      const errMsg = `Invalid lanuage value '"${lang}" in CRYPTOBOX_LANGUAGE; function cryptobox_language()`;
+      const errMsg = `Invalid lanuage value '"${lang}" in CRYPTOBOX_LANGUAGE; function setLanguage()`;
       throw new Error(errMsg);
     }
     this.language = lang;
@@ -278,7 +286,7 @@ class Cryptobox {
    * It is recommended to use a value that you can track once a response is recieved from
    * gourl.io
    */
-  setUserID(userID = '') {
+  setUserID(userID: string | number = ''): void {
     userID = `${userID}`;
     this.validateUserID(userID);
     this.userID = userID;
@@ -292,7 +300,7 @@ class Cryptobox {
    * It is recommended to use a value that you can track once a response is recieved from
    * gourl.io
    */
-  setOrderID(orderID = '') {
+  setOrderID(orderID: string | number = ''): void {
     orderID = `${orderID}`;
     this.validateOrderID(orderID);
     this.orderID = orderID;
@@ -302,7 +310,7 @@ class Cryptobox {
    * Sets the user's IP address
    * @param { string } ip - The user's IP address
    */
-  setIPAddress(ip) {
+  setIPAddress(ip: string): void {
     this.ipAddress = ip;
   }
 
@@ -311,8 +319,8 @@ class Cryptobox {
    * @param { string } agent - The client's agent
    * returns
    */
-  ua($agent) {
-    this.userAgent = $agent;
+  ua(agent: string): void {
+    this.userAgent = agent;
   }
 
   /**
@@ -320,7 +328,7 @@ class Cryptobox {
    * @param { string } userID - The ID of the user making the payment.
    * @returns { void } void
    */
-  validateUserID(userID) {
+  validateUserID(userID: string): void {
     if (!userID) {
       throw new Error('User ID is required');
     }
@@ -339,7 +347,7 @@ class Cryptobox {
    * @param { string } orderID - The ID of the Order
    * @returns { void } void
    */
-  validateOrderID(orderID) {
+  validateOrderID(orderID: string): void {
     if (!orderID) {
       throw new Error('Order ID is required');
     }
@@ -356,7 +364,7 @@ class Cryptobox {
   /**
    * Validate amount and amountUSD
    */
-  validateAmount() {
+  validateAmount(): void {
     if (
       (this.amount <= 0 && this.amountUSD <= 0) ||
       (this.amount > 0 && this.amountUSD > 0)
@@ -390,7 +398,7 @@ class Cryptobox {
    * public key is empty or invalid
    * @returns { void } void
    */
-  validatePublicKey() {
+  validatePublicKey(): void {
     if (
       !this.checkKeyPattern(this.publicKey) ||
       this.publicKey.length !== 50 ||
@@ -413,13 +421,12 @@ class Cryptobox {
    * private key is empty or invalid
    * @returns { void } void
    */
-  validatePrivateKey() {
-    // if (preg_replace('/[^A-Za-z0-9]/', '', this.privateKey) != this.privateKey || strlen(this.privateKey) != 50 || !strpos(this.privateKey, "AA") || this.boxID != this.left(this.privateKey, "AA") || !strpos(this.privateKey, "PRV") || this.left(this.privateKey, "PRV") != this.left(this.publicKey, "PUB")) die("Invalid Cryptocoin Payment Box PRIVATE KEY".(this.privateKey?"":" - cannot be empty"));
+  validatePrivateKey(): void {
     if (
       !this.checkKeyPattern(this.privateKey) ||
       this.privateKey.length !== 50 ||
       this.privateKey.indexOf('AA') === -1 ||
-      this.boxID != this.left(this.privateKey, 'AA') ||
+      String(this.boxID) !== this.left(this.privateKey, 'AA') ||
       this.privateKey.indexOf('PRV') === -1 ||
       this.left(this.privateKey, 'PRV') != this.left(this.publicKey, 'PUB')
     ) {
@@ -440,7 +447,7 @@ class Cryptobox {
       (!this.checkKeyPattern(this.webdevKey) ||
         this.webdevKey.indexOf('DEV') !== 0 ||
         this.webdevKey != this.webdevKey.toUpperCase() ||
-        this.icrc32(this.left(this.webdevKey, 'G', false)) !=
+        String(this.icrc32(this.left(this.webdevKey, 'G', false))) !==
           this.right(this.webdevKey, 'G', false))
     ) {
       this.webdevKey = '';
@@ -451,7 +458,7 @@ class Cryptobox {
    * Composes the URL for the request to the gourl.io API
    */
   composeURL() {
-    const data = {
+    const data: RequestURLKeys = {
       b: this.boxID,
       c: this.coinName,
       p: this.publicKey,
@@ -470,33 +477,35 @@ class Cryptobox {
     };
 
     if (this.webdevKey) {
-      data.w = $this.webdevKey;
+      data.w = this.webdevKey;
     }
 
     data.z = Math.floor(Math.random() * (10000000 + 1));
 
-    return Object.keys(data).reduce(
-      (prev, current) => prev + `/${current}/${data[current]}`,
-      this.baseURL
-    );
+    return Object.keys(data).reduce((prev, current) => {
+      const { value } = Object.getOwnPropertyDescriptor(data, current)!;
+      return prev + `/${current}/${value}`;
+    }, this.baseURL);
   }
 
   /**
    * Creates a payment.
    * @returns { Promise<Response> } - A Promise that resolves to the response from the payment gateway
    */
-  createPayment() {
-    return new Promise((resolve, reject) => {
-      https.get(this.composeURL(), (response) => {
-        let body = '';
-        response.on('data', (data) => (body += data));
-        response.on('error', (error) => reject(error));
-        response.on('end', () => resolve(body));
-      });
-    });
+  async createPayment(): Promise<AxiosResponse> {
+    // return new Promise((resolve, reject) => {
+    //   https.get(this.composeURL(), (response) => {
+    //     let body = '';
+    //     response.on('data', (data) => (body += data));
+    //     response.on('error', (error) => reject(error));
+    //     response.on('end', () => resolve(JSON.parse(body)));
+    //   });
+    // });
+    const res = await axios.get(this.composeURL());
+    return res.data;
   }
 
-  left(str = '', findme = '', firstpos = true) {
+  left(str = '', findme = '', firstpos = true): string {
     const strCopy = str.toLowerCase();
     const findmeCopy = findme.toLowerCase();
 
@@ -507,7 +516,7 @@ class Cryptobox {
     return str.substr(0, pos);
   }
 
-  right(str = '', findme = '', firstpos = true) {
+  right(str = '', findme = '', firstpos = true): string {
     const strCopy = str.toLowerCase();
     const findmeCopy = findme.toLowerCase();
 
@@ -523,7 +532,8 @@ class Cryptobox {
    * @param { string } str - The string to be tested
    * @returns { number }
    */
-  icrc32(str) {
+
+  icrc32(str: string): number {
     const input = crc32.str(str);
     const intMax = Math.pow(2, 31) - 1;
     let output;
@@ -538,8 +548,8 @@ class Cryptobox {
    * @param { string } value - Value to convert to base64
    * @returns { string } The base64 value
    */
-  convertToBase64(value = '') {
-    return new Buffer.from(value).toString('base64');
+  convertToBase64(value: string = ''): string {
+    return Buffer.from(value).toString('base64');
   }
 
   // UTILIIES
@@ -552,9 +562,9 @@ class Cryptobox {
    * or generate hash for iframe html box with sizes $width x $height
    */
   createCryptoboxHash() {
-    const hashStr = `${this.boxID}|${this.coinName}|${this.public_key}|${this.private_key}|${this.webdev_key}|${this.amount}|${this.amountUSD}|${this.period}| ${this.language}|${this.orderID}|${this.userID}|${this.userFormat}|${this.ver}|${this.ipAddress}`;
-    return crypto.createHash('md5').update(hashStr).digest('base64');
+    const hashStr = `${this.boxID}|${this.coinName}|${this.publicKey}|${this.privateKey}|${this.webdevKey}|${this.amount}|${this.amountUSD}|${this.period}|${this.language}|${this.orderID}|${this.userID}|${this.userFormat}|${this.version}|${this.ipAddress}`;
+    return md5(hashStr);
   }
 }
 
-module.exports = Cryptobox;
+export default Cryptobox;
