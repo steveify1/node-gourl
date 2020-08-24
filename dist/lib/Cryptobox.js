@@ -1,80 +1,11 @@
 "use strict";
-/**
- * ##########################################
- * ###  PLEASE DO NOT MODIFY THIS FILE !  ###
- * ##########################################
- *
- *
- * PHP Cryptocurrency Payment Class
- *
- * @package     GoUrl PHP Bitcoin/Altcoin Payments and Crypto Captcha
- * @copyright   2014-2020 Delta Consultants
- * @category    Libraries
- * @website     https://gourl.io
- * @api         https://gourl.io/bitcoin-payment-gateway-api.html
- * @example     https://gourl.io/lib/examples/example_customize_box.php    <----
- * @gitHub  	https://github.com/cryptoapi/Payment-Gateway
- * @license 	Free GPLv2
- * @version     2.2.1
- *
- *
- *  CLASS CRYPTOBOX - LIST OF METHODS:
- *  --------------------------------------
- *  1a. function display_cryptobox(..)			// Show Cryptocoin Payment Box and automatically displays successful payment message. If $submit_btn = true, display user submit button 'Click Here if you have already sent coins' or not
- *  1b. function display_cryptobox_bootstrap(..) // Show Customize Mobile Friendly Payment Box and automatically displays successful payment message if use ajax.
- *                                               // optional - FREE WHITE-LABEL PRODUCT - BITCOIN/ALTCOIN PAYMENT BOX WITH YOUT LOGO THROUGH YOUR SERVER.
- *                                               // This function use bootstrap4 template; you can use your own template without this function
- *  2. function cryptobox_json_url()            // It generates url with your parameters to gourl.io payment gateway. Using this url you can get bitcoin/altcoin payment box values in JSON format and use it on html page with Jquery/Ajax.
- *  3. function get_json_values()               // Alternatively, you can receive JSON values though php curl on server side and use it in your php file without using Javascript and Jquery/Ajax.
- *  4. function cryptobox_hash(..)              // It generates security md5 hash for all values used in payment box
- *  5. function is_paid(..)	 					// If payment received - return true, otherwise return false
- *  6. function is_confirmed()					// Returns true if transaction/payment have 6+ confirmations. Average transaction/payment confirmation time - 10-20min for 6 confirmations (altcoins)
- *  7. function amount_paid()					// Returns the amount of coins received from the user
- *  8. function amount_paid_usd()				// Returns the approximate amount in USD received from the user using live cryptocurrency exchange rates on the datetime of payment
- *  9. function set_status_processed()			// Optional - if payment received, set payment status to 'processed' and save this status in database
- *  10. function is_processed()					// Optional - if payment status in database is 'processed' - return true, otherwise return false
- *  11.function cryptobox_type()				// Returns cryptobox type - paymentbox or captchabox
- *  12.function payment_id()					// Returns current record id in the table crypto_payments. Crypto_payments table stores all payments from your users
- *  13.function payment_date()					// Returns payment/transaction datetime in GMT format
- *  14.function payment_info()					// Returns object with current user payment details - amount, txID, datetime, usercointry, etc
- *  15.function cryptobox_reset()				// Optional, Delete cookies/sessions and new cryptobox with new payment amount will be displayed. Use this function only if you have not set userID manually.
- *  16.function coin_name()						// Returns coin name (bitcoin, dogecoin, etc)
- *  17.function coin_label()					// Returns coin label (DOGE, BTC, etc)
- *  18.function iframe_id()						// Returns payment box frame id
- *  19.function payment_status_text()           // Return localize message from $cryptobox_localisation for current user language
- *
- *
- *  LIST OF GENERAL FUNCTIONS:
- *  -------------------------------------
- *  A. function payment_history(..) 			// Returns array with history payment details of any of your users / orders / etc.
- *  B. function payment_unrecognised(..) 		// Returns array with unrecognised payments for custom period - $time (users paid wrong amount on your internal wallet address)
- *  C. function payment_ipntest(..)				// Returns an array with test payments sent from the IPN TEST gourl.io web page https://gourl.io/info/ipn/IPN_Website_Testing.html
- *  D. function payment_ipntest_delete(..)		// Delete test payments sent from the IPN TEST gourl.io web page https://gourl.io/info/ipn/IPN_Website_Testing.html
- *  E. function cryptobox_sellanguage(..)       // Get cryptobox current selected language by user (english, spanish, etc)
- *  F. function cryptobox_selcoin(..)			// Get cryptobox current selected coin by user (bitcoin, dogecoin, etc. - for multiple coin payment boxes)
- *  G. function display_language_box(..)		// Language selection dropdown list for cryptocoin payment box
- *  H. function display_currency_box(..)		// Multiple crypto currency selection list. You can accept payments in multiple crypto currencies (for example: bitcoin, bitcoincash, bitcoinsv, litecoin, dogecoin)
- *  I. function get_country_name(..)			// Get country name by country code or reverse
- *  J. function convert_currency_live(..)		// Fiat currency converter using live exchange rates websites
- *  K. function get_url_contents(..)			// get remote url content through curl
- *  L. function validate_gourlkey(..)			// Validate gourl private/public/affiliate keys
- *  M. function run_sql(..)						// Run SQL queries and return result in array/object formats
- *
- *
- *  CONSTANTS
- *  -------------------------------------
- *  CRYPTOBOX_LANGUAGE - cryptobox current selected language
- *  CRYPTOBOX_LOCALISATION - all cryptobox localisations
- *
- *  Note: Complete Description of the Functions, see on the page below or here - https://gourl.io/api-php.html
- *
- *
- */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const crypto_1 = __importDefault(require("crypto"));
+// // import https  from 'https';
+// import querystring from 'querystring';
 const buffer_1 = require("buffer");
 const crc_32_1 = __importDefault(require("crc-32"));
 const md5_1 = __importDefault(require("md5"));
