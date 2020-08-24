@@ -74,8 +74,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// import crypto  from 'crypto';
-// import https  from 'https';
+const crypto_1 = __importDefault(require("crypto"));
 const buffer_1 = require("buffer");
 const crc_32_1 = __importDefault(require("crc-32"));
 const md5_1 = __importDefault(require("md5"));
@@ -84,6 +83,7 @@ const axios_1 = __importDefault(require("axios"));
 const _defaults_1 = __importDefault(require("./_defaults"));
 // IMPORT CONSTANTS
 const constants_1 = require("./constants");
+const formatExpiryPeriod_1 = __importDefault(require("./utils/formatExpiryPeriod"));
 class Cryptobox {
     /**
      * Creates an new Cryptobox object for interfacing with a `gourl` cryptobox
@@ -205,22 +205,7 @@ class Cryptobox {
      * which determines the period after which the cryptobox will be obselete and a new cryptobox must then be created.
      */
     setExpiry() {
-        this.period = this.period.replace(' ', '').toUpperCase().trim();
-        if (this.period.substring(-1) === 'S') {
-            this.period = this.period.substring(0, -1);
-        }
-        const arr = [];
-        for (let i = 1; i <= 90; i++) {
-            arr.push(`${i}MINUTE`);
-            arr.push(`${i}HOUR`);
-            arr.push(`${i}DAY`);
-            arr.push(`${i}WEEK`);
-            arr.push(`${i}MONTH`);
-        }
-        if (this.period !== 'NOEXPIRY' && !arr.includes(this.period)) {
-            throw new Error(`Invalid Cryptobox Period - ${this.period}`);
-        }
-        this.period = this.period.replace(/(minute|hour|day|week|month)/i, (match) => ` ${match}`);
+        this.period = formatExpiryPeriod_1.default(this.period);
     }
     /**
      * Sets the user's language. Defaults to `en` for English users.
@@ -423,15 +408,39 @@ class Cryptobox {
      * @returns { Promise<Response> } - A Promise that resolves to the response from the payment gateway
      */
     async createPayment() {
-        // return new Promise((resolve, reject) => {
-        //   https.get(this.composeURL(), (response) => {
-        //     let body = '';
-        //     response.on('data', (data) => (body += data));
-        //     response.on('error', (error) => reject(error));
-        //     response.on('end', () => resolve(JSON.parse(body)));
-        //   });
-        // });
         const res = await axios_1.default.get(this.composeURL());
+        return res.data;
+    }
+    /**
+     * Checks the payment status by sending a request to the GoURL server
+     * options
+     */
+    static async checkPaymentStatus(options) {
+        const privateKeyHash = crypto_1.default
+            .createHash('sha512')
+            .update(options.privateKey)
+            .digest('hex');
+        const period = formatExpiryPeriod_1.default(options.period);
+        const toHash = `${options.boxID}${privateKeyHash}${options.userID}${options.orderID}${options.language}${period}${options.ipAddress}`;
+        const hash = md5_1.default(toHash);
+        const data = {
+            g: privateKeyHash,
+            b: options.boxID,
+            o: options.orderID,
+            u: options.userID,
+            l: options.language,
+            e: period,
+            i: options.ipAddress,
+            h: hash,
+        };
+        const url = `https://coins.gourl.io/result.php`;
+        const res = await axios_1.default.post(url, null, {
+            params: data,
+            headers: {
+                'User-Agent': options.userAgent,
+            },
+            timeout: 20000,
+        });
         return res.data;
     }
     left(str = '', findme = '', firstpos = true) {
